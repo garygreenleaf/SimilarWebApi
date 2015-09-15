@@ -1,0 +1,12 @@
+{
+    "require-dev": {
+        "thunderer/similarweb-api": "dev-master"
+    },
+    "scripts": {
+        "post-install-cmd": "php vendor/thunderer/similarweb-api/bin/generate",
+        "post-update-cmd": "php vendor/thunderer/similarweb-api/bin/generate"
+    },
+    "require": {
+        "alcohol/iso3166": "^3.0"
+    }
+}
