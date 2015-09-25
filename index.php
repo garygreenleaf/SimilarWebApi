@@ -653,7 +653,13 @@ function getSimilarSites($domain){
         </tr>
       </table>
 
-      <p><?php print $hits ?> hits used (costing $<?php print $cost?>)</p>
+      <p>
+        <?php if($debug){
+          print 'debug mode no credits used';
+        } else {
+          print $hits .' hits used (costing $'. $cost .')';
+        }?>
+      </p>
       <a  href="/download.php"><button>Download CSV</button></a>
 
     <?php } ?>
