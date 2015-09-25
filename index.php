@@ -10,17 +10,17 @@ use Thunder\SimilarWebApi\ClientFacade;
 $yourUserKey    = 'ca1476940ddbdb09b667b62dc5f3cbd4';
 $desiredFormat  = 'json';
 $domain         = filter_var($_POST['domain'], FILTER_SANITIZE_URL);
+$period         = 'monthly'; // daily, weekly, monthly *Default: monthly
+$start          = date('m-Y', strtotime('first day of previous month')); // Start Month (MM-YYYY) *Required
+$end            = date('m-Y', strtotime('first day of previous month')); // End Month (MM-YYYY) *Required
+$main           = false; // false/true. Get metrics on the Main Domain only (i.e. not including subdomains). *Default: false
+$topscore       = filter_var($_POST['top'], FILTER_SANITIZE_URL) / 100;
 
 if($_GET['debug'] == 'off') {
   $debug        = false;
 } else {
   $debug        = true;
 }
-
-$period         = 'monthly'; // daily, weekly, monthly *Default: monthly
-$start          = date('m-Y', strtotime('first day of previous month')); // Start Month (MM-YYYY) *Required
-$end            = date('m-Y', strtotime('first day of previous month')); // End Month (MM-YYYY) *Required
-$main           = false; // false/true. Get metrics on the Main Domain only (i.e. not including subdomains). *Default: false
 
 // display month
 if($period == 'monthly' && $start == $end){
@@ -36,17 +36,35 @@ if($domain){
   $data = array();
 
   // get the data for the primary domain and push into the data array
-  $data[$domain] = getStats($clientFacade, $domain);
+  $data[$domain] = getStats($domain);
 
-  // get 5 similar websites, retreive the data for each domain and push into data array
-  $similarWebsites = getSimilarSites($clientFacade, $domain);
+
+  // get 5 similar websites, retreive the data for each domain and push into data array - Now removed
+  /*$similarWebsites = getSimilarSites($domain);
   foreach($similarWebsites AS $matchdomain => $matchscore){
 
     $data[$matchdomain] = getStats($matchdomain);
 
-  }
+  }*/
 
-  $data = getRanks($data);
+  // get the values from the other inputs if set
+  $i = 1;
+  while ($i <= 5) {
+      if($_POST['domain'.$i] != '') {
+        $comparedomain =  filter_var($_POST['domain'.$i], FILTER_SANITIZE_URL);
+        $data[$comparedomain] = getStats($comparedomain);
+      }
+      $i++;
+  };
+
+  $data = calculateScores($data);
+
+  $hits = sizeof($data) * 6;
+  $cost = 0.02 * $hits;
+
+  session_start();
+  $_SESSION['data'] = $data;
+  $_SESSION['month'] = $month;
 
 }
 
@@ -287,7 +305,7 @@ function getSocialReferrals($domain){
 
 }
 
-function getRanks($data) {
+function calculateScores($data) {
 
   foreach($data AS $site => $stats) {
 
@@ -300,81 +318,144 @@ function getRanks($data) {
 
   }
 
+  global $topscore;
+
   arsort($estimatedVisits, SORT_NUMERIC);
   $i=1;
-  $s=0.75;
+  $s=$topscore;
   foreach($estimatedVisits AS $site => $stats){
 
-    $data[$site]['estimatedVisits'] .= ' (#'.$i.')';
-    $i++;
-    $data[$site]['score']['estimatedVisits'] = $s;
-    $s=$s-0.1;
+    if($data[$site]['estimatedVisits'] > 0){
+
+      $data[$site]['estimatedVisits'] .= ' (#'.$i.')';
+      $i++;
+      $data[$site]['score']['estimatedVisits'] = $s;
+      $s=$s-0.1;
+    } else {
+
+       $data[$site]['estimatedVisits'] = 'N/A';
+
+    }
 
   }
 
-  arsort($globalRank, SORT_NUMERIC);
+  asort($globalRank, SORT_NUMERIC);
   $i=1;
-  $s=0.75;
+  $s=$topscore;
   foreach($globalRank AS $site => $stats){
 
-    $data[$site]['trafficData']['globalRank'] .= ' (#'.$i.')';
-    $i++;
-    $data[$site]['score']['globalRank'] = $s;
-    $s=$s-0.1;
+    if($data[$site]['trafficData']['globalRank'] > 0){
+
+      $data[$site]['trafficData']['globalRank'] .= ' (#'.$i.')';
+      $i++;
+      $data[$site]['score']['globalRank'] = $s;
+      $s=$s-0.1;
+
+    } else {
+
+       $data[$site]['trafficData']['globalRank'] = 'N/A';
+
+    }
 
   }
 
-  arsort($countryRank, SORT_NUMERIC);
+  asort($countryRank, SORT_NUMERIC);
   $i=1;
-  $s=0.75;
+  $s=$topscore;
   foreach($countryRank AS $site => $stats){
 
-    $data[$site]['trafficData']['countryRank'] .= ' (#'.$i.')';
-    $i++;
-    $data[$site]['score']['countryRank'] = $s;
-    $s=$s-0.1;
+    if($data[$site]['trafficData']['countryRank'] > 0){
+
+      $data[$site]['trafficData']['countryRank'] .= ' (#'.$i.')';
+      $i++;
+      $data[$site]['score']['countryRank'] = $s;
+      $s=$s-0.1;
+
+    } else {
+
+      $data[$site]['trafficData']['countryRank'] = 'N/A';
+
+    }
 
   }
 
   arsort($pageViews, SORT_NUMERIC);
   $i=1;
-  $s=0.75;
+  $s=$topscore;
   foreach($pageViews AS $site => $stats){
 
-    $data[$site]['pageViews'] .= ' (#'.$i.')';
-    $i++;
-    $data[$site]['score']['pageViews'] = $s;
-    $s=$s-0.1;
+    if($data[$site]['pageViews'] > 0){
+
+      $data[$site]['pageViews'] .= ' (#'.$i.')';
+      $i++;
+      $data[$site]['score']['pageViews'] = $s;
+      $s=$s-0.1;
+
+    } else {
+
+      $data[$site]['pageViews'] = 'N/A';
+
+    }
 
   }
 
   arsort($visitDuration, SORT_NUMERIC);
   $i=1;
-  $s=0.75;
+  $s=$topscore;
   foreach($visitDuration AS $site => $stats){
 
-    $data[$site]['visitDuration'] .= ' (#'.$i.')';
-    $i++;
-    $data[$site]['score']['visitDuration'] = $s;
-    $s=$s-0.1;
+    if($data[$site]['visitDuration'] > 0){
+
+      $data[$site]['visitDuration'] .= ' (#'.$i.')';
+      $i++;
+      $data[$site]['score']['visitDuration'] = $s;
+      $s=$s-0.1;
+
+    } else {
+
+      $data[$site]['visitDuration'] = 'N/A';
+
+    }
 
   }
 
   asort($bounceRate, SORT_NUMERIC);
   $i=1;
-  $s=0.75;
+  $s=$topscore;
   foreach($bounceRate AS $site => $stats){
 
-    $data[$site]['bounceRate'] .= ' (#'.$i.')';
-    $i++;
-    $data[$site]['score']['bounceRate'] = $s;
-    $s=$s-0.1;
+    if($data[$site]['bounceRate'] > 0){
+
+      $data[$site]['bounceRate'] .= ' (#'.$i.')';
+      $i++;
+      $data[$site]['score']['bounceRate'] = $s;
+      $s=$s-0.1;
+
+    } else {
+
+      $data[$site]['bounceRate'] = 'N/A';
+
+    }
 
   }
+
+  // handle empty array
 
   foreach($data AS $site =>$stats){
-    $data[$site]['score']['average'] = round((float)array_sum($stats['score'])/6 * 100) . '%';
+
+    if(is_array($stats['score'])) {
+
+      $data[$site]['score']['average'] = round((float)array_sum($stats['score'])/sizeof($stats['score']) * 100) . '%';
+
+    } else {
+
+      $data[$site]['score']['average'] = '0%';
+
+    }
+
   }
+
+
 
   return $data;
 
@@ -426,6 +507,14 @@ function getSimilarSites($domain){
       tr, td, th {border: 1px dotted black; padding:5px;}
       th:first-child {border: none;}
       .label {font-weight: bold;}
+      form {width:350px; overflow:hidden;}
+      label {padding:0 5px; width:157px;float: left}
+      input {padding:5px; margin-bottom:10px;float: left}
+      .row {float: left}
+      .top {margin-bottom:20px;}
+      .smallInput {width:40px;}
+      .percentage {line-height:25px;padding-left:10px;}
+      .submit {float:right;}
 
     </style>
 
@@ -437,10 +526,38 @@ function getSimilarSites($domain){
 
     <form id="selectDomain" action="" method="post">
 
-      <label for="domain">Enter Domain</label>
-      <input name="domain" type="text" required placeholder="eg: yha.org.uk"/>
-      <input type="submit" />
-
+      <div class="row top">
+        <label for="top">Top</label>
+        <input class="smallInput" name="top" type="text" value="65"/>
+        <span class="percentage">%</span>
+      </div>
+      <div class="row">
+        <label for="domain">Enter Domain</label>
+        <input name="domain" type="text" required placeholder="eg: yha.org.uk"/>
+      </div>
+      <div class="row">
+        <label for="domain1">Alternative Domain 1</label>
+        <input name="domain1" type="text" placeholder="eg: yha.org.uk"/>
+      </div>
+      <div class="row">
+        <label for="domain2">Alternative Domain 2</label>
+        <input name="domain2" type="text" placeholder="eg: yha.org.uk"/>
+      </div>
+      <div class="row">
+        <label for="domain3">Alternative Domain 3</label>
+        <input name="domain3" type="text" placeholder="eg: yha.org.uk"/>
+      </div>
+      <div class="row">
+        <label for="domain4">Alternative Domain 4</label>
+        <input name="domain4" type="text" placeholder="eg: yha.org.uk"/>
+      </div>
+      <div class="row">
+        <label for="domain5">Alternative Domain 5</label>
+        <input name="domain5" type="text" placeholder="eg: yha.org.uk"/>
+      </div>
+      <div class="row submit">
+        <input type="submit" />
+      </div>
     </form>
 
     <?php if($domain) { ?>
@@ -476,8 +593,12 @@ function getSimilarSites($domain){
           <td class="label">% Global Traffic (above 1%)</td>
           <?php foreach($data AS $domain => $stats){
             $traffic = '';
-            foreach($stats['trafficData']['globalTraffic'] AS $country => $share){
-              $traffic .= $country . ' - ' . $share . '<br />';
+            if(is_array($stats['trafficData']['globalTraffic'])) {
+              foreach($stats['trafficData']['globalTraffic'] AS $country => $share){
+                $traffic .= $country . ' - ' . $share . '<br />';
+              }
+            } else {
+              $traffic = 'N/A';
             }
             print '<td>'. $traffic .'</td>';
           } ?>
@@ -514,8 +635,12 @@ function getSimilarSites($domain){
           <td class="label">% Social Referrals (above 1%)</td>
           <?php foreach($data AS $domain => $stats){
             $traffic = '';
-            foreach($stats['socialReferrals'] AS $source => $share){
-              $traffic .= $source . ' - ' . $share . '<br />';
+            if(is_array($stats['socialReferrals'])) {
+              foreach($stats['socialReferrals'] AS $source => $share){
+                $traffic .= $source . ' - ' . $share . '<br />';
+              }
+            } else {
+              $traffic .= 'N/A';
             }
             print '<td>'. $traffic .'</td>';
           } ?>
@@ -527,6 +652,9 @@ function getSimilarSites($domain){
             } ?>
         </tr>
       </table>
+
+      <p><?php print $hits ?> hits used (costing $<?php print $cost?>)</p>
+      <a  href="/download.php"><button>Download CSV</button></a>
 
     <?php } ?>
 
